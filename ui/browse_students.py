@@ -6,7 +6,7 @@ from ui.components.dynamic_table import render_table
 
 
 def render_browse_page(table_name: str):
-    st.subheader("Browse students")
+    st.subheader("Browse Data")
 
     schema_info = get_table_schema(table_name)
     if not schema_info:
