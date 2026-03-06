@@ -8,7 +8,7 @@ from database.connection import clear_db
 from llm.providers import get_supported_providers
 from llm.key_validation import validate_key
 from llm.litellm_client import validate_key_with_litellm
-from state.session import init_session_state, set_llm_config
+from state.session import init_session_state, set_llm_config, clear_llm_config, get_llm_config
 from state.cache import clear_cached_queries
 from ui.browse_students import render_browse_page
 from ui.query_console import render_query_console
@@ -18,6 +18,10 @@ from utils.error_messages import user_message_for_exception
 def main():
     st.set_page_config(page_title="CSV Data Explorer", layout="wide")
     init_session_state()
+
+    # Rotating key for API key input so "Clear" resets the field without a persistent flag that could clear config on a later run (see tests/api_session_1.md)
+    if "api_key_input_key" not in st.session_state:
+        st.session_state["api_key_input_key"] = 0
 
     # Clear DB once per session when the app first loads
     if st.session_state.get("db_cleared") is not True:
@@ -30,7 +34,8 @@ def main():
     st.sidebar.header("LLM Settings")
     providers = get_supported_providers()
     provider = st.sidebar.selectbox("LLM Provider", providers)
-    api_key = st.sidebar.text_input("API Key", type="password")
+    api_key = st.sidebar.text_input("API Key", key=f"api_key_input_{st.session_state['api_key_input_key']}", type="password")
+    st.sidebar.caption("Closing the browser ends the session and clears the key from server memory.")
     submit_key = st.sidebar.button("Submit", key="api_key_submit")
 
     if submit_key and api_key:
@@ -44,6 +49,12 @@ def main():
                 st.sidebar.success("API key saved and validated.")
             else:
                 st.sidebar.error("Key rejected by provider. Fix the key and try again.")
+
+    if get_llm_config() is not None:
+        if st.sidebar.button("Clear API key", key="clear_api_key"):
+            clear_llm_config()
+            st.session_state["api_key_input_key"] = st.session_state.get("api_key_input_key", 0) + 1
+            st.rerun()
 
     st.sidebar.header("Data")
     uploaded_file = st.sidebar.file_uploader("Upload CSV", type=["csv"])

@@ -1,4 +1,9 @@
 # state/session.py
+"""
+Session state for the Streamlit app.
+SECURITY: Do not log or persist objects containing api_key (e.g. llm_config).
+Use LLMConfig.safe_repr() or redact before any debug output.
+"""
 import streamlit as st
 from typing import Dict, Any, List
 from llm.settings import LLMConfig
@@ -19,6 +24,11 @@ def init_session_state():
 
 def set_llm_config(provider: str, api_key: str):
     st.session_state["llm_config"] = LLMConfig(provider=provider, api_key=api_key)
+
+
+def clear_llm_config():
+    """Remove the stored API key from session state. Key is cleared from server memory for this session."""
+    st.session_state["llm_config"] = None
 
 
 def get_llm_config() -> LLMConfig | None:
