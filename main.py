@@ -12,6 +12,7 @@ from state.session import init_session_state, set_llm_config
 from state.cache import clear_cached_queries
 from ui.browse_students import render_browse_page
 from ui.query_console import render_query_console
+from utils.error_messages import user_message_for_exception
 
 
 def main():
@@ -50,20 +51,23 @@ def main():
     if uploaded_file is not None:
         last_processed = st.session_state.get("last_processed_file_name")
         if last_processed != uploaded_file.name:
-            bytes_data = uploaded_file.read()
-            rows, schema = run_ingestion_pipeline(bytes_data)
-            if not rows:
-                st.error("No rows found after ingestion.")
-            else:
-                clear_db()
-                clear_cached_queries()
-                table_name = filename_to_table_name(uploaded_file.name)
-                st.session_state["table_name"] = table_name
-                st.session_state["rows"] = rows
-                st.session_state["schema"] = schema
-                st.session_state["last_processed_file_name"] = uploaded_file.name
-                load_rows_into_table(table_name, rows, schema)
-                st.sidebar.success("Data ingested and loaded into database.")
+            try:
+                bytes_data = uploaded_file.read()
+                rows, schema = run_ingestion_pipeline(bytes_data)
+                if not rows:
+                    st.error("No rows found after ingestion.")
+                else:
+                    clear_db()
+                    clear_cached_queries()
+                    table_name = filename_to_table_name(uploaded_file.name)
+                    st.session_state["table_name"] = table_name
+                    st.session_state["rows"] = rows
+                    st.session_state["schema"] = schema
+                    st.session_state["last_processed_file_name"] = uploaded_file.name
+                    load_rows_into_table(table_name, rows, schema)
+                    st.sidebar.success("Data ingested and loaded into database.")
+            except Exception as e:
+                st.sidebar.error("Upload failed: " + user_message_for_exception(e))
 
     table_name = st.session_state.get("table_name", "students")
     schema = st.session_state.get("schema", {})

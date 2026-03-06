@@ -3,6 +3,7 @@ import streamlit as st
 from database.executor import run_query
 from database.inspector import get_table_schema
 from ui.components.dynamic_table import render_table
+from utils.error_messages import user_message_for_exception
 
 
 def render_browse_page(table_name: str):
@@ -23,5 +24,8 @@ def render_browse_page(table_name: str):
 
     cols_sql = ", ".join(f'"{c}"' for c in selected_cols)
     sql = f'SELECT {cols_sql} FROM "{table_name}" LIMIT 200;'
-    rows = run_query(sql)
-    render_table(rows)
+    try:
+        rows = run_query(sql)
+        render_table(rows)
+    except Exception as e:
+        st.error("Could not load table: " + user_message_for_exception(e))

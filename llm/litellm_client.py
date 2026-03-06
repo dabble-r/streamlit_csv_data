@@ -6,6 +6,7 @@ Maps app provider names to LiteLLM model names and delegates completion.
 from typing import Tuple
 
 from .settings import LLMConfig
+from utils.error_messages import sanitize_error_message
 
 # Map app provider names to LiteLLM model identifiers (used for validation and completion).
 # Use small/fast models for validation and default generation.
@@ -41,7 +42,8 @@ def validate_key_with_litellm(provider: str, api_key: str) -> Tuple[bool, str]:
             return True, "Key validated with provider."
         return False, "Invalid key or insufficient permissions."
     except Exception as e:
-        return False, f"Validation failed: {getattr(e, 'message', str(e))}"
+        raw = getattr(e, "message", str(e))
+        return False, "Validation failed: " + sanitize_error_message(raw)
 
 
 def _validate_via_completion(provider: str, api_key: str) -> Tuple[bool, str]:
@@ -62,7 +64,7 @@ def _validate_via_completion(provider: str, api_key: str) -> Tuple[bool, str]:
         msg = getattr(e, "message", str(e))
         if "auth" in msg.lower() or "invalid" in msg.lower() or "401" in msg or "403" in msg:
             return False, "Invalid key or insufficient permissions."
-        return False, f"Validation failed: {msg}"
+        return False, "Validation failed: " + sanitize_error_message(msg)
 
 
 def completion_with_config(config: LLMConfig, prompt: str) -> str:
