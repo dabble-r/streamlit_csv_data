@@ -10,6 +10,7 @@ from database.inspector import get_table_schema
 from utils.validators import is_safe_sql, extract_executable_sql, validate_sql_identifiers
 from utils.formatting import rows_to_arrow_safe_dataframe
 from utils.error_messages import user_message_for_exception
+from utils.query_import_export import build_export_text, parse_import_file, group_parsed_by_label_prefix
 
 
 def render_query_console(schema: Dict[str, str], table_name: str):
@@ -51,15 +52,63 @@ def render_query_console(schema: Dict[str, str], table_name: str):
         except Exception as e:
             st.error("Generation failed: " + user_message_for_exception(e))
 
+    # Import queries: hidden by default in expander
+    st.markdown("---")
+    with st.expander("Import queries", expanded=False):
+        if "import_uploader_key" not in st.session_state:
+            st.session_state["import_uploader_key"] = 0
+        import_file = st.file_uploader(
+            "Import queries from file",
+            type=["txt", "md", "sql"],
+            key=f"import_queries_file_{st.session_state['import_uploader_key']}",
+        )
+        if import_file is not None:
+            # Process only when this file is "new" so we don't re-read exhausted stream on rerun (see tests/upload_query_1.md)
+            file_id = (import_file.name, getattr(import_file, "size", 0))
+            if file_id != st.session_state.get("last_imported_file_id"):
+                try:
+                    content = import_file.read().decode("utf-8", errors="replace")
+                    parsed = parse_import_file(content)
+                    if parsed:
+                        # Group by label prefix (e.g. "1. Original" + "1. Variant" -> one group) and assign next free display number
+                        groups = group_parsed_by_label_prefix(parsed)
+                        existing = get_cached_queries()
+                        existing_sids = {q["submission_index"] for q in existing}
+                        next_sid = (min(existing_sids) - 1) if existing_sids else 0
+                        num_existing_groups = len(existing_sids) if existing_sids else 0
+                        for group_idx, group in enumerate(groups):
+                            display_num = num_existing_groups + 1 + group_idx
+                            for i, p in enumerate(group):
+                                stored_label = f"{display_num}. Original" if i == 0 else f"{display_num}. Variant"
+                                add_cached_query(
+                                    stored_label,
+                                    p["nl"],
+                                    p["sql"],
+                                    submission_index=next_sid,
+                                    is_original=(i == 0),
+                                )
+                            next_sid -= 1
+                        st.session_state["last_imported_file_id"] = file_id
+                        st.success(f"Imported {len(parsed)} queries ({len(groups)} groups).")
+                        st.rerun()
+                    else:
+                        st.warning("No queries found in the file. Use the export format: ## Title, TITLE: ..., NL: ..., SQL: ...")
+                except Exception as e:
+                    st.error("Import failed: " + user_message_for_exception(e))
+
     cached = get_cached_queries()
-    if cached:
-        col1, col2 = st.columns([3, 1])
-        with col1:
-            st.markdown("### Cached queries")
-        with col2:
-            if st.button("Clear cached queries", key="clear_cached_queries"):
-                clear_cached_queries()
-                st.rerun()
+
+    # Only Cached queries title and select dropdown always visible; rest mostly hidden (expander)
+    st.markdown("### Cached queries")
+    if not cached:
+        st.selectbox(
+            "Select a query to run",
+            options=["— No cached queries (generate or import to add) —"],
+            key="cached_query_choice",
+            disabled=True,
+        )
+        st.caption("Generate SQL from a natural language question above, or import a cached query file below.")
+    else:
         submission_ids = sorted(set(q["submission_index"] for q in cached), reverse=True)
         ordered = []
         for num, sid in enumerate(submission_ids, 1):
@@ -77,6 +126,31 @@ def render_query_console(schema: Dict[str, str], table_name: str):
         if choice in labels:
             idx = labels.index(choice)
             selected = ordered[idx][2]
+
+        # Include in export + Clear: hidden by default in expander
+        with st.expander("Cached query options (export / clear)", expanded=False):
+            if st.button("Clear cached queries", key="clear_cached_queries"):
+                clear_cached_queries()
+                st.session_state.pop("last_imported_file_id", None)
+                st.session_state["import_uploader_key"] = st.session_state.get("import_uploader_key", 0) + 1
+                st.rerun()
+            st.caption("Include in export:")
+            for i in range(len(ordered)):
+                st.checkbox(labels[i], value=True, key=f"export_include_{i}")
+            to_export = [
+                {"label": labels[i], "nl": ordered[i][2]["nl"], "sql": ordered[i][2]["sql"]}
+                for i in range(len(ordered))
+                if st.session_state.get(f"export_include_{i}", True)
+            ]
+            if to_export:
+                export_bytes = build_export_text(to_export).encode("utf-8")
+                st.download_button(
+                    "Export selected",
+                    data=export_bytes,
+                    file_name="cached_queries_export.txt",
+                    mime="text/plain",
+                    key="export_selected_queries",
+                )
 
         if selected:
             st.caption("Edit the SQL below if needed (e.g. replace placeholders like your_table_name), then run.")
