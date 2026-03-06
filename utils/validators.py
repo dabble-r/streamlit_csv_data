@@ -73,9 +73,14 @@ def validate_sql_identifiers(
 ) -> Tuple[bool, List[str]]:
     """
     Check that double-quoted identifiers in the SQL exist in the DB (table or columns).
+    Quoted identifiers that appear after AS (SELECT-list aliases) are allowed and not
+    required to exist in the table, so aggregates/computed columns do not trigger warnings.
     Returns (all_valid, list_of_missing_identifiers).
     """
     valid = db_column_names | {table_name}
     quoted = re.findall(r'"([^"]+)"', sql)
-    missing = [x for x in quoted if x not in valid]
+    alias_match = re.findall(r"\bAS\s+\"([^\"]+)\"", sql, re.IGNORECASE)
+    allowed_aliases = set(alias_match)
+    valid_or_alias = valid | allowed_aliases
+    missing = [x for x in quoted if x not in valid_or_alias]
     return (len(missing) == 0, missing)

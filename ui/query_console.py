@@ -109,6 +109,7 @@ def render_query_console(schema: Dict[str, str], table_name: str):
                         try:
                             rows = run_query(executable)
                             df = rows_to_arrow_safe_dataframe(rows)
+                            st.caption("Result may include computed columns (e.g. aggregates) not in the original table.")
                             st.dataframe(df)
                             if not df.empty:
                                 csv_bytes = df.to_csv(index=False).encode("utf-8")
@@ -124,7 +125,8 @@ def render_query_console(schema: Dict[str, str], table_name: str):
                             if "no such column" in err or "no such table" in err:
                                 st.error(
                                     f"Query failed: {e}. The table structure may have changed. "
-                                    "Clear cached queries, re-upload your data, and regenerate the query."
+                                    "If the query uses aggregates or expressions, ensure column names in FROM/WHERE/GROUP BY/ORDER BY match the table; SELECT aliases are allowed. "
+                                    "Otherwise clear cached queries, re-upload your data, and regenerate the query."
                                 )
                             else:
                                 st.error(f"Query failed: {e}")

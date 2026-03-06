@@ -16,7 +16,8 @@ def build_schema_prompt(schema: Dict[str, str], table_name: str = "data") -> str
     lines.append("")
     lines.append(
         "Rules: Use double-quoted identifiers for the table and every column "
-        "(e.g. SELECT \"column\" FROM \"table\"). Output only one SQL statement, no explanation or markdown."
+        "(e.g. SELECT \"column\" FROM \"table\"). For aggregates or computed columns use a quoted alias, "
+        "e.g. AVG(\"score\") AS \"avg_score\" or COUNT(*) AS \"count\". Output only one SQL statement, no explanation or markdown."
     )
     return "\n".join(lines)
 
