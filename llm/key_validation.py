@@ -9,28 +9,35 @@ INVISIBLE_CHARS = [
     "\u00ad",  # soft hyphen
 ]
 
+# Lengths are per provider docs / common usage; kept permissive to avoid false rejections.
+# OpenAI: sk- (51 chars typical), sk-proj- (longer); we accept a wide range.
 PROVIDER_PATTERNS = {
     "OpenAI": {
-        "prefix": "sk-",
+        "prefixes": ("sk-", "sk-proj-"),  # standard and project keys
         "min_len": 40,
-        "max_len": 100,
+        "max_len": 256,
     },
     "Anthropic": {
-        "prefix": "sk-ant-",
+        "prefixes": ("sk-ant-",),
         "min_len": 60,
         "max_len": 120,
     },
     "Mistral": {
-        "prefix": "mistral-",
+        "prefixes": ("mistral-",),
         "min_len": 30,
         "max_len": 80,
     },
     "Gemini": {
-        "prefix": "AIza",
+        "prefixes": ("AIza",),
         "min_len": 30,
         "max_len": 60,
     },
 }
+
+
+def _key_matches_prefix(key: str, pattern: dict) -> bool:
+    prefixes = pattern.get("prefixes", (pattern.get("prefix"),))
+    return any(key.startswith(p) for p in prefixes)
 
 
 def contains_invisible_chars(key: str) -> bool:
@@ -40,6 +47,8 @@ def contains_invisible_chars(key: str) -> bool:
 def validate_key(provider: str, key: str) -> Tuple[bool, str]:
     """
     Returns (is_valid, message).
+    Validates format/prefix and length only; does not call the API.
+    For OpenAI, length is advisory only (accept key if prefix matches).
     """
     raw_key = key
     stripped_key = key.strip()
@@ -52,10 +61,23 @@ def validate_key(provider: str, key: str) -> Tuple[bool, str]:
 
     pattern = PROVIDER_PATTERNS.get(provider)
     if pattern:
-        if not key.startswith(pattern["prefix"]):
-            return False, f"{provider} keys typically start with '{pattern['prefix']}'."
+        if not _key_matches_prefix(key, pattern):
+            prefixes = pattern["prefixes"]
+            hint = ", ".join(f"'{p}'" for p in prefixes)
+            return False, f"{provider} keys typically start with {hint}."
 
-        if not (pattern["min_len"] <= len(key) <= pattern["max_len"]):
-            return False, f"This key length looks unusual for {provider}. Double-check for missing characters."
+        min_len = pattern["min_len"]
+        max_len = pattern["max_len"]
+        if not (min_len <= len(key) <= max_len):
+            # OpenAI: accept anyway and warn (key formats/lengths vary).
+            if provider == "OpenAI":
+                return True, (
+                    f"Key length is outside the usual range ({min_len}–{max_len} chars). "
+                    "Saved; try the Query tab."
+                )
+            return False, (
+                f"Key length is outside the usual range for {provider} "
+                f"({min_len}–{max_len} characters)."
+            )
 
     return True, "Key format looks valid."

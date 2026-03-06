@@ -23,8 +23,9 @@ def load_rows_into_table(
 
         columns = list(schema.keys())
         norm_cols = [normalize_column_name(c) for c in columns]
+        quoted_cols = [f'"{c}"' for c in norm_cols]
         placeholders = ", ".join(["?"] * len(columns))
-        insert_sql = f'INSERT INTO "{table_name}" ({", ".join(norm_cols)}) VALUES ({placeholders})'
+        insert_sql = f'INSERT INTO "{table_name}" ({", ".join(quoted_cols)}) VALUES ({placeholders})'
 
         for row in rows:
             values = [row.get(col) for col in columns]
