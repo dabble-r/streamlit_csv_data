@@ -23,10 +23,7 @@ def main():
     if "api_key_input_key" not in st.session_state:
         st.session_state["api_key_input_key"] = 0
 
-    # Clear DB once per session when the app first loads
-    if st.session_state.get("db_cleared") is not True:
-        clear_db()
-        st.session_state["db_cleared"] = True
+    # Do not clear DB on first run: in multi-process deployments a new process would wipe the shared DB and drop data (see tests/csv_drop_1.md). DB is cleared only when the user uploads a new file (below).
 
     st.title("CSV Data Explorer")
 
