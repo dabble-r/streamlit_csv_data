@@ -1,6 +1,6 @@
 # utils/validators.py
 import re
-from typing import Dict
+from typing import Dict, Set, Tuple, List
 
 
 def is_safe_sql(sql: str) -> bool:
@@ -64,3 +64,18 @@ def extract_executable_sql(raw: str, table_name: str | None = None) -> str:
 
 def ensure_schema_not_empty(schema: Dict[str, str]) -> bool:
     return bool(schema)
+
+
+def validate_sql_identifiers(
+    sql: str,
+    table_name: str,
+    db_column_names: Set[str],
+) -> Tuple[bool, List[str]]:
+    """
+    Check that double-quoted identifiers in the SQL exist in the DB (table or columns).
+    Returns (all_valid, list_of_missing_identifiers).
+    """
+    valid = db_column_names | {table_name}
+    quoted = re.findall(r'"([^"]+)"', sql)
+    missing = [x for x in quoted if x not in valid]
+    return (len(missing) == 0, missing)

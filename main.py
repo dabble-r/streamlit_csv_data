@@ -23,7 +23,7 @@ def main():
         clear_db()
         st.session_state["db_cleared"] = True
 
-    st.title("Early Literacy Data Explorer")
+    st.title("CSV Data Explorer")
 
     # Sidebar: LLM provider + API key
     st.sidebar.header("LLM Settings")
